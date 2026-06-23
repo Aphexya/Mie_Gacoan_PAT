@@ -270,19 +270,31 @@ def init_api_routes(app, get_db):
         
         tipe_server = 'OUT' if tipe_asal == 'IN' else tipe_asal 
 
+        if tipe_asal == 'REQ_PUSAT':
+            status_server = 'pending'
+            synced_at_val = None
+        else:
+            status_server = 'synced'
+            synced_at_val = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         conn = get_db(); cursor = conn.cursor()
+
         try:
             cursor.execute("SELECT 1 FROM transaksi_header WHERE asal_node=? AND id_lokal=?", (asal_node, id_lokal))
             if cursor.fetchone(): return jsonify({"status": "skip"}), 200
 
+            # Gunakan variabel status_server dan synced_at_val yang dinamis
             cursor.execute('''INSERT INTO transaksi_header (asal_node, id_lokal, id_user, tipe_transaksi, tanggal, sync_status, synced_at)
                               VALUES (?,?,?,?,?,?,?)''', 
-                           (asal_node, id_lokal, data.get('id_user'), tipe_server, data.get('tanggal'), 'synced', datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+                           (asal_node, id_lokal, data.get('id_user'), tipe_server, data.get('tanggal'), status_server, synced_at_val))
 
             for item in detail:
                 cursor.execute("INSERT INTO transaksi_detail (asal_node, id_lokal, id_bahan, jumlah) VALUES (?,?,?,?)",
                                (asal_node, id_lokal, item['id_bahan'], item['jumlah']))
-                if tipe_server == 'OUT':
+                
+                # Stok pusat HANYA dipotong otomatis jika transaksi kasir biasa (OUT), 
+                # sedangkan REQ_PUSAT tidak boleh memotong stok sebelum di-ACC
+                if tipe_server == 'OUT' and tipe_asal != 'REQ_PUSAT':
                     cursor.execute("UPDATE bahan_baku SET stok = stok - ? WHERE id_bahan=? AND stok >= ?",
                                    (item['jumlah'], item['id_bahan'], item['jumlah']))
             

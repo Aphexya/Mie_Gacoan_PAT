@@ -53,8 +53,8 @@ else:
 
 NODE_NAME  = "Cabang A" if NODE_ID == "Node2" else "Cabang B"
 PORT       = 5001        if NODE_ID == "Node2" else 5002
-# SERVER_URL = "http://192.168.56.101:5000"
-SERVER_URL = "http://localhost:5000"
+SERVER_URL = "http://192.168.56.101:5000"
+# SERVER_URL = "http://localhost:5000"
 DB         = 'gacoan_inventory.db'
 SYNC_EVERY = 15   # detik
 
@@ -104,11 +104,12 @@ def next_id_lokal():
     return n
 
 # ── Proses Sinkronisasi ──────────────────────────────────────────────
+# ── Proses Sinkronisasi ──────────────────────────────────────────────
 def jalankan_sync():
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Kirim antrean sync_queue seperti biasa
+    # 1. Ambil semua antrean pending
     cursor.execute(
         "SELECT * FROM sync_queue WHERE status='pending' ORDER BY id_queue ASC"
     )
@@ -118,8 +119,25 @@ def jalankan_sync():
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     for item in antrian:
+        payload_data = json.loads(item['payload'])
+        
+        # JALUR A: Jika di dalam payload ada bendera REQ_PUSAT, jalankan sinkronisasi pengajuan offline
+        if payload_data.get('tipe_transaksi') == 'REQ_PUSAT':
+            if cek_server():
+                try:
+                    res = requests.post(f"{SERVER_URL}/api/ajukan_minta", json={"node_id": payload_data['node_id'], "id_bahan": payload_data['id_bahan'], "jumlah": payload_data['jumlah']}, timeout=4)
+                    if res.status_code == 200:
+                        id_nota_pusat = res.json().get('id_nota_pusat')
+                        cursor.execute("UPDATE sync_queue SET status='synced', last_attempt=? WHERE id_queue=?", (now, item['id_queue']))
+                        cursor.execute("UPDATE transaksi_header SET synced_at=? WHERE asal_node=? AND id_lokal=?", (id_nota_pusat, NODE_ID, payload_data['id_lokal_cabang']))
+                        berhasil += 1
+                except:
+                    gagal += 1
+            continue # Lanjut ke antrean berikutnya
+
+        # JALUR B: Transaksi Kasir / Penjualan Biasa
         try:
-            res = requests.post(f"{SERVER_URL}/sync", json=json.loads(item['payload']), timeout=5)
+            res = requests.post(f"{SERVER_URL}/sync", json=payload_data, timeout=5)
             resp = res.json()
             if res.status_code == 200 and resp.get('status') in ('success', 'skip'):
                 cursor.execute("UPDATE sync_queue SET status='synced', last_attempt=? WHERE id_queue=?", (now, item['id_queue']))
@@ -128,33 +146,30 @@ def jalankan_sync():
         except:
             gagal += 1
     
-    # 💡 LOGIKA BARU: Cek status asli dari Server Pusat (ACC atau TOLAK)
-    cursor.execute("SELECT id_lokal FROM transaksi_header WHERE tipe_transaksi='REQ_PUSAT' AND sync_status='pending'")
+    # 2. Cek status approval dari Server Pusat (ACC atau TOLAK)
+    cursor.execute("SELECT id_lokal, synced_at FROM transaksi_header WHERE tipe_transaksi='REQ_PUSAT' AND sync_status='pending'")
     req_pending = cursor.fetchall()
     
     if req_pending and cek_server():
         for r in req_pending:
             try:
-                # Tembak API pusat untuk menanyakan nasib nota ini
-                res = requests.get(f"{SERVER_URL}/api/cek_status_minta/{NODE_ID}/{r['id_lokal']}", timeout=3)
-                if res.status_code == 200:
-                    status_pusat = res.json().get('sync_status')
-                    
-                    # Ambil detail bahan & qty lokal untuk kebutuhan update stok
-                    cursor.execute("SELECT id_bahan, jumlah FROM transaksi_detail WHERE asal_node=? AND id_lokal=?", (NODE_ID, r['id_lokal']))
-                    dt = cursor.fetchone()
-                    
-                    if dt and status_pusat == 'synced':
-                        # 🟢 JIKA DI-ACC PUSAT: Status jadi 'synced', tipe jadi 'IN' (Restock), STOK BERTAMBAH
-                        cursor.execute("UPDATE transaksi_header SET sync_status='synced', tipe_transaksi='IN', synced_at=? WHERE asal_node=? AND id_lokal=?", (now, NODE_ID, r['id_lokal']))
-                        cursor.execute("UPDATE bahan_baku SET stok = stok + ? WHERE id_bahan=?", (dt['jumlah'], dt['id_bahan']))
-                        berhasil += 1
+                id_pusat_asli = r['synced_at']
+                if id_pusat_asli != 'OFFLINE': # Hanya cek jika sudah punya ID dari pusat
+                    res = requests.get(f"{SERVER_URL}/api/cek_status_minta/{NODE_ID}/{id_pusat_asli}", timeout=3)
+                    if res.status_code == 200:
+                        status_pusat = res.json().get('sync_status')
                         
-                    elif dt and status_pusat == 'failed':
-                        # 🔴 JIKA DITOLAK PUSAT: Status jadi 'failed', tipe tetap 'REQ_PUSAT', STOK TIDAK BERTAMBAH
-                        cursor.execute("UPDATE transaksi_header SET sync_status='failed', synced_at=? WHERE asal_node=? AND id_lokal=?", (now, NODE_ID, r['id_lokal']))
-                        berhasil += 1
+                        cursor.execute("SELECT id_bahan, jumlah FROM transaksi_detail WHERE asal_node=? AND id_lokal=?", (NODE_ID, r['id_lokal']))
+                        dt = cursor.fetchone()
                         
+                        if dt and status_pusat == 'synced':
+                            cursor.execute("UPDATE transaksi_header SET sync_status='synced', tipe_transaksi='IN', synced_at=? WHERE asal_node=? AND id_lokal=?", (now, NODE_ID, r['id_lokal']))
+                            cursor.execute("UPDATE bahan_baku SET stok = stok + ? WHERE id_bahan=?", (dt['jumlah'], dt['id_bahan']))
+                            berhasil += 1
+                            
+                        elif dt and status_pusat == 'failed':
+                            cursor.execute("UPDATE transaksi_header SET sync_status='failed', synced_at=? WHERE asal_node=? AND id_lokal=?", (now, NODE_ID, r['id_lokal']))
+                            berhasil += 1
             except Exception as e:
                 print(f"Gagal verifikasi nota #{r['id_lokal']}:", str(e))
 

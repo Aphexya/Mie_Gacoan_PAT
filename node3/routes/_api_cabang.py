@@ -68,19 +68,39 @@ def init_api_cabang_routes(app, get_db, render, login_required, jalankan_sync, n
             else:
                 cursor.execute("UPDATE bahan_baku SET stok = stok - ? WHERE id_bahan=?", (item['jumlah'], item['id_bahan']))
 
-        # Kirim payload ke sync_queue dengan tipe yang benar
-        payload = json.dumps({
-            "asal_node":      NODE_ID,
-            "id_lokal":       id_lokal,
-            "id_user":        id_user,
-            "tipe_transaksi": tipe, # IN atau OUT
-            "tanggal":        tanggal,
-            "detail":         [{"id_bahan": i['id_bahan'], "jumlah": i['jumlah']} for i in items]
-        })
-        cursor.execute('''
-            INSERT INTO sync_queue (asal_node, id_lokal, payload, status)
-            VALUES (?,?,?,?)
-        ''', (NODE_ID, id_lokal, payload, 'pending'))
+        # 💡 LOGIKA BARU: Tetap pakai status 'pending' agar lolos CHECK constraint database
+        if tipe == 'IN':
+            payload = json.dumps({
+                "node_id": NODE_ID,
+                "id_bahan": items[0]['id_bahan'], 
+                "jumlah": items[0]['jumlah'],
+                "id_lokal_cabang": id_lokal,
+                "tipe_transaksi": "REQ_PUSAT"  # 👈 Tanda khusus diselipkan di dalam payload
+            })
+            cursor.execute('''
+                INSERT INTO sync_queue (asal_node, id_lokal, payload, status)
+                VALUES (?,?,?,?)
+            ''', (NODE_ID, id_lokal, payload, 'pending')) # 👈 Diubah kembali jadi 'pending'
+            
+            cursor.execute('''
+                UPDATE transaksi_header 
+                SET tipe_transaksi='REQ_PUSAT', sync_status='pending', synced_at='OFFLINE'
+                WHERE asal_node=? AND id_lokal=?
+            ''', (NODE_ID, id_lokal))
+        else:
+            # Jika memilih KELUAR (Pemakaian/Kasir), biarkan pakai logika lamamu (Langsung Sync)
+            payload = json.dumps({
+                "asal_node":      NODE_ID,
+                "id_lokal":       id_lokal,
+                "id_user":        id_user,
+                "tipe_transaksi": tipe,
+                "tanggal":        tanggal,
+                "detail":         [{"id_bahan": i['id_bahan'], "jumlah": i['jumlah']} for i in items]
+            })
+            cursor.execute('''
+                INSERT INTO sync_queue (asal_node, id_lokal, payload, status)
+                VALUES (?,?,?,?)
+            ''', (NODE_ID, id_lokal, payload, 'pending'))
 
         conn.commit()
         conn.close()
@@ -116,34 +136,41 @@ def init_api_cabang_routes(app, get_db, render, login_required, jalankan_sync, n
         id_b = request.form.get('id_bahan')
         qty = int(request.form.get('jumlah'))
         
+        conn = get_db(); c = conn.cursor()
+        id_l = c.execute("SELECT COALESCE(MAX(id_lokal),0)+1 FROM transaksi_header WHERE asal_node=?", (NODE_ID,)).fetchone()[0]
+        now_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         try:
-            # Kirim request pengajuan ke server pusat
+            # Coba kirim langsung ke pusat dulu
             res = requests.post(f"{SERVER_URL}/api/ajukan_minta", 
                                 json={"node_id": NODE_ID, "id_bahan": id_b, "jumlah": qty}, 
-                                timeout=5)
+                                timeout=4)
             
             if res.status_code == 200:
-                resp_data = res.json()
-                id_nota_pusat = resp_data.get('id_nota_pusat')
-                
-                conn = get_db(); c = conn.cursor()
-                # Catat log lokal di cabang, tetapi statusnya 'pending_gudang' (STOK BELUM BERTAMBAH)
-                id_l = c.execute("SELECT COALESCE(MAX(id_lokal),0)+1 FROM transaksi_header WHERE asal_node=?", (NODE_ID,)).fetchone()[0]
-                
-                # Kita simpan tipe sebagai 'REQ_PUSAT' dengan status 'pending'
-                c.execute("INSERT INTO transaksi_header (asal_node, id_lokal, id_user, tipe_transaksi, sync_status, tanggal) VALUES (?,?,?,?,?,?)",
-                        (NODE_ID, id_l, session['id_user'], 'REQ_PUSAT', 'pending', datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-                c.execute("INSERT INTO transaksi_detail (asal_node, id_lokal, id_bahan, jumlah) VALUES (?,?,?,?)",
-                        (NODE_ID, id_l, id_b, qty))
-                
-                conn.commit(); conn.close()
-                session['flash'] = "Permintaan diajukan! Menunggu ACC/Persetujuan dari Pusat."; session['flash_ok'] = True
+                id_nota_pusat = res.json().get('id_nota_pusat')
+                # ONLINE: Catat lokal dengan referensi ID pusat di kolom synced_at
+                c.execute("INSERT INTO transaksi_header (asal_node, id_lokal, id_user, tipe_transaksi, sync_status, tanggal, synced_at) VALUES (?,?,?,?,?,?,?)",
+                        (NODE_ID, id_l, session['id_user'], 'REQ_PUSAT', 'pending', now_time, id_nota_pusat))
+                session['flash'] = "Permintaan diajukan secara Online! Menunggu ACC dari Pusat."; session['flash_ok'] = True
             else:
                 session['flash'] = f"Gagal: {res.json().get('pesan')}"; session['flash_ok'] = False
+                conn.close(); return redirect(url_for('index'))
                 
         except Exception as e:
-            session['flash'] = "Server Pusat Offline! Tidak bisa mengajukan permintaan."; session['flash_ok'] = False
+            # 🔴 OFFLINE HANDLING: Server mati? Tetap catat di database lokal cabang!
+            # Karena offline dan belum punya ID pusat, kita taruh nilai 'OFFLINE' sementara di synced_at
+            c.execute("INSERT INTO transaksi_header (asal_node, id_lokal, id_user, tipe_transaksi, sync_status, tanggal, synced_at) VALUES (?,?,?,?,?,?,?)",
+                    (NODE_ID, id_l, session['id_user'], 'REQ_PUSAT', 'pending', now_time, 'OFFLINE'))
             
+            # Masukkan data ini ke sync_queue agar dikirim otomatis ke /api/ajukan_minta saat pusat online
+            payload = json.dumps({"node_id": NODE_ID, "id_bahan": id_b, "jumlah": qty, "id_lokal_cabang": id_l})
+            c.execute("INSERT INTO sync_queue (asal_node, id_lokal, payload, status) VALUES (?,?,?,?)", 
+                      (NODE_ID, id_l, payload, 'pending_request'))
+            
+            session['flash'] = "Server Pusat Offline! Pengajuan disimpan lokal & akan dikirim otomatis saat online."; session['flash_ok'] = True
+            
+        c.execute("INSERT INTO transaksi_detail (asal_node, id_lokal, id_bahan, jumlah) VALUES (?,?,?,?)", (NODE_ID, id_l, id_b, qty))
+        conn.commit(); conn.close()
         return redirect(url_for('index'))
 
     @app.route('/api/proxy_stok_pusat')
