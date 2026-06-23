@@ -1,0 +1,127 @@
+<script>
+// ── MODAL MINTA BARANG ─────────────────────────────────────────────
+const modalStyle = document.createElement('style');
+modalStyle.textContent = `
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 350px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .modal-header {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    color: var(--accent);
+  }
+  .modal-form-group { margin-bottom: 1rem; }
+  .modal-label {
+    display: block;
+    font-size: .72rem;
+    color: var(--muted);
+    letter-spacing: .5px;
+    margin-bottom: .4rem;
+  }
+  .modal-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: .9rem;
+    padding: .65rem 1rem;
+    border-radius: 8px;
+    outline: none;
+    transition: .2s;
+  }
+  .modal-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59,130,246,.1);
+  }
+  .modal-buttons {
+    display: flex;
+    gap: .5rem;
+    margin-top: 1.5rem;
+  }
+  .modal-btn {
+    flex: 1;
+    padding: .65rem;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--font);
+    font-weight: 700;
+    font-size: .85rem;
+    cursor: pointer;
+    transition: .2s;
+  }
+  .modal-btn-submit {
+    background: linear-gradient(135deg, var(--green), #34d399);
+    color: #000;
+  }
+  .modal-btn-submit:hover { opacity: .9; }
+  .modal-btn-cancel {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .modal-btn-cancel:hover { color: var(--text); border-color: var(--accent); }
+`;
+document.head.appendChild(modalStyle);
+
+const mintaModal = `
+  <div class="modal-overlay" id="mintaModal">
+    <div class="modal-content">
+      <div class="modal-header">📮 Minta Barang ke Pusat</div>
+      <form method="POST" action="/minta_bahan" id="mintaForm">
+        <div class="modal-form-group">
+          <label class="modal-label">BAHAN</label>
+          <input type="text" id="mintaBahan" readonly class="modal-input" style="background:var(--surface2); cursor:not-allowed;">
+          <input type="hidden" name="id_bahan" id="mintaIdBahan">
+        </div>
+        <div class="modal-form-group">
+          <label class="modal-label">JUMLAH MINTA</label>
+          <input type="number" name="jumlah" id="mintaQty" class="modal-input" min="1" max="1000" value="10" required>
+        </div>
+        <div class="modal-form-group">
+          <label class="modal-label" id="mintaSatuan"></label>
+        </div>
+        <div class="modal-buttons">
+          <button type="submit" class="modal-btn modal-btn-submit">✓ KIRIM PERMINTAAN</button>
+          <button type="button" class="modal-btn modal-btn-cancel" onclick="closeMintaModal()">BATAL</button>
+        </div>
+      </form>
+    </div>
+  </div>
+`;
+document.body.insertAdjacentHTML('beforeend', mintaModal);
+
+function openMintaModal(id, nama, satuan) {
+  document.getElementById('mintaIdBahan').value = id;
+  document.getElementById('mintaBahan').value = nama;
+  document.getElementById('mintaSatuan').textContent = `SATUAN: ${satuan}`;
+  document.getElementById('mintaQty').value = 10;
+  document.getElementById('mintaModal').classList.add('active');
+}
+
+function closeMintaModal() {
+  document.getElementById('mintaModal').classList.remove('active');
+}
+
+document.getElementById('mintaModal').addEventListener('click', (e) => {
+  if (e.target.id === 'mintaModal') closeMintaModal();
+});
+
+</script>

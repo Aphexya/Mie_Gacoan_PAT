@@ -1,0 +1,124 @@
+<script>
+  // Auto-refresh tiap 15 detik
+  setTimeout(() => location.reload(), 15000);
+
+    // ── CRUD FUNCTIONS ────────────────────────────────────────
+  let editingId = null;
+
+  function openAddBahanModal() {
+    editingId = null;
+    document.getElementById('modalTitle').textContent = '📝 Tambah Bahan Baru';
+    document.getElementById('submitBtn').textContent = 'TAMBAH';
+    document.getElementById('bahanForm').reset();
+    document.getElementById('alertMsg').innerHTML = '';
+    document.getElementById('bahanModal').classList.add('active');
+  }
+
+  function openEditBahanModal(id, nama, satuan, stok) {
+    editingId = id;
+    document.getElementById('modalTitle').textContent = '✎ Edit Bahan Baku';
+    document.getElementById('submitBtn').textContent = 'UPDATE';
+    document.getElementById('inputNama').value = nama;
+    document.getElementById('inputSatuan').value = satuan;
+    document.getElementById('inputStok').value = stok;
+    document.getElementById('alertMsg').innerHTML = '';
+    document.getElementById('bahanModal').classList.add('active');
+  }
+
+  function closeModal() {
+    document.getElementById('bahanModal').classList.remove('active');
+    editingId = null;
+  }
+
+  function showAlert(msg, type) {
+    const alertEl = document.getElementById('alertMsg');
+    alertEl.innerHTML = `<div class="alert-msg alert-${type}">${msg}</div>`;
+  }
+
+  function submitBahan(event) {
+    event.preventDefault();
+    const nama = document.getElementById('inputNama').value.trim();
+    const satuan = document.getElementById('inputSatuan').value.trim();
+    const stok = parseInt(document.getElementById('inputStok').value);
+
+    if (!nama || !satuan) {
+      showAlert('⚠ Nama dan satuan harus diisi', 'error');
+      return;
+    }
+
+    const payload = { nama_bahan: nama, satuan, stok };
+    const url = editingId ? `/api/bahan/${editingId}` : '/api/bahan';
+    const method = editingId ? 'PUT' : 'POST';
+
+    fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'success') {
+        showAlert(`✓ ${data.pesan}`, 'success');
+        setTimeout(() => {
+          closeModal();
+          location.reload();
+        }, 1000);
+      } else {
+        showAlert(`✗ ${data.pesan}`, 'error');
+      }
+    })
+    .catch(err => showAlert(`✗ Error: ${err.message}`, 'error'));
+  }
+
+  function deleteBahan(id) {
+    if (!confirm('⚠ Yakin ingin menghapus bahan ini?')) return;
+    
+    fetch(`/api/bahan/${id}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'success') {
+          alert(`✓ ${data.pesan}`);
+          location.reload();
+        } else {
+          alert(`✗ ${data.pesan}`);
+        }
+      })
+      .catch(err => alert(`✗ Error: ${err.message}`));
+  }
+
+    function setujuiPermintaan(nodeId, idLokal) {
+        if (!confirm(`Setujui permintaan restock dari ${nodeId}? Stok pusat akan otomatis dipotong.`)) return;
+        fetch(`/api/acc_minta/${nodeId}/${idLokal}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.pesan);
+                    location.reload();
+                } else {
+                    alert(`✗ Gagal: ${data.pesan}`);
+                }
+            })
+            .catch(err => alert(`✗ Error: ${err.message}`));
+    }
+
+    function tolakPermintaan(nodeId, idLokal) {
+        if (!confirm(`Yakin ingin MENOLAK permintaan restock dari ${nodeId}?`)) return;
+        
+        fetch(`/api/tolak_minta/${nodeId}/${idLokal}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+            if (data.status === 'success') {
+                alert(data.pesan);
+                location.reload();
+            } else {
+                alert(`✗ Gagal: ${data.pesan}`);
+            }
+            })
+            .catch(err => alert(`✗ Error: ${err.message}`));
+    }
+
+  // Close modal when clicking outside
+  document.getElementById('bahanModal').addEventListener('click', (e) => {
+    if (e.target.id === 'bahanModal') closeModal();
+  });
+</script>

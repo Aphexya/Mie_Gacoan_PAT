@@ -1,0 +1,23 @@
+  <!-- STATS -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">TOTAL TRANSAKSI</div>
+      <div class="stat-value accent">{{ stats.total }}</div>
+      <div class="stat-sub">semua cabang</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">SUDAH TERSINKRON</div>
+      <div class="stat-value green">{{ stats.synced }}</div>
+      <div class="stat-sub">status synced</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">MENUNGGU SYNC</div>
+      <div class="stat-value blue">{{ stats.pending }}</div>
+      <div class="stat-sub">status pending</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">JENIS BAHAN</div>
+      <div class="stat-value red">{{ stats.bahan }}</div>
+      <div class="stat-sub">item terdaftar</div>
+    </div>
+  </div>

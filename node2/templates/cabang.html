@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mie Gacoan — {{ node_name }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+{% include 'partials_cabang/_styles_cabang.html' %}
+</head>
+<body>
+
+{% if not session.get('logged_in') %}
+<!-- ══ LOGIN ══ -->
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="icon">🏪</div>
+      <h2>Mie Gacoan <span style="color:var(--accent2)">{{ node_name }}</span></h2>
+      <p>{{ node_id }} · Sistem Inventaris</p>
+    </div>
+    {% if error %}<div class="alert-error">{{ error }}</div>{% endif %}
+    <form method="POST" action="{{ url_for('login') }}">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="{{ 'admin_cabang_a' if node_id == 'Node2' else 'admin_cabang_b' }}" autocomplete="off" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn-login">MASUK →</button>
+    </form>
+  </div>
+</div>
+
+{% else %}
+<!-- ══ APP ══ -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">🏪</div>
+    <div class="logo-text">Mie <span>Gacoan</span></div>
+    <span class="badge-cabang">{{ node_name|upper }}</span>
+  </div>
+  <div class="topbar-right">
+    <div class="server-status">
+      <div class="dot {{ 'on' if server_online else 'off' }}"></div>
+      <span class="server-label" style="color:{{ 'var(--green)' if server_online else 'var(--red)' }}">
+        Server {{ 'ONLINE' if server_online else 'OFFLINE' }}
+      </span>
+    </div>
+    {% if pending_count > 0 %}
+    <span class="pending-badge">{{ pending_count }} PENDING</span>
+    {% endif %}
+    <form method="POST" action="/do_sync" style="margin:0">
+      <button class="btn-sync">⟳ SYNC</button>
+    </form>
+    <form method="POST" action="/logout" style="margin:0">
+      <button class="btn-sm btn-logout">Logout</button>
+    </form>
+  </div>
+</div>
+
+<div class="container">
+  <div class="page-header">
+    <h1>Dashboard {{ node_name }}</h1>
+    <p>{{ node_id }} · Login sebagai: {{ session.username }} · {{ current_time }}</p>
+  </div>
+
+  {% if flash_msg %}
+  <div class="alert {{ 'alert-ok' if flash_ok else 'alert-err' }}">{{ flash_msg }}</div>
+  {% endif %}
+  {% if sync_msg %}
+  <div class="alert alert-info">{{ sync_msg }}</div>
+  {% endif %}
+
+  {% include 'partials_cabang/_tabs_cabang.html' %}
+
+
+  <!-- TAB: STOK -->
+  <div id="tab-stok" class="tab-content {{ 'active' if active_tab == 'stok' else '' }}">
+    <div class="card">
+      <div class="card-header">
+        <h3>📦 Stok Bahan Baku</h3>
+        <button class="btn-sm" onclick="loadStokPusat(); location.reload()">↻ Refresh</button>
+      </div>
+      <div class="card-body">
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);">
+              <th style="text-align:left; padding:.8rem; font-size:.75rem; color:var(--muted); letter-spacing:1px;">NAMA BAHAN</th>
+              <th style="text-align:center; padding:.8rem; font-size:.75rem; color:var(--muted); letter-spacing:1px;">STOK LOKAL</th>
+              <th style="text-align:center; padding:.8rem; font-size:.75rem; color:var(--muted); letter-spacing:1px;">STOK PUSAT</th>
+              <th style="text-align:center; padding:.8rem; font-size:.75rem; color:var(--muted); letter-spacing:1px;">SATUAN</th>
+              <th style="text-align:center; padding:.8rem; font-size:.75rem; color:var(--muted); letter-spacing:1px;">AKSI</th>
+            </tr>
+          </thead>
+          <tbody id="stok-table-body">
+            {% for b in stok %}
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:.8rem; font-weight:600;">{{ b.nama_bahan }}</td>
+              <td style="text-align:center; padding:.8rem; font-size:1.1rem; font-weight:700; color:var(--accent);">{{ b.stok }}</td>
+              <td style="text-align:center; padding:.8rem; font-size:1.1rem; font-weight:700; color:var(--green);" id="pusat-{{ b.id_bahan }}">—</td>
+              <td style="text-align:center; padding:.8rem; font-size:.8rem; color:var(--muted);">{{ b.satuan }}</td>
+              <td style="text-align:center; padding:.8rem;">
+                <form method="POST" action="/minta_bahan" style="display:inline;">
+                  <input type="hidden" name="id_bahan" value="{{ b.id_bahan }}">
+                  <input type="hidden" name="jumlah" id="minta-qty-{{ b.id_bahan }}" value="10">
+                  <button type="button" class="btn-sm" onclick="openMintaModal({{ b.id_bahan }}, '{{ b.nama_bahan }}', '{{ b.satuan }}')" style="font-size:.72rem; padding:.35rem .7rem; background:rgba(16,185,129,.15); border:1px solid rgba(16,185,129,.3); color:var(--green);">Minta</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: INPUT TRANSAKSI -->
+  <div id="tab-input" class="tab-content {{ 'active' if active_tab == 'input' else '' }}">
+    <div class="card">
+      <div class="card-header"><h3>➕ Mencatat Bahan Masuk/Keluar</h3></div>
+      <div class="card-body">
+        <form method="POST" action="/transaksi">
+          <label>Tipe Transaksi</label>
+          <div class="tipe-toggle">
+            <button type="button" class="tipe-btn out active" id="btn-out" onclick="setTipe('OUT')">📤 KELUAR (Pemakaian)</button>
+            <button type="button" class="tipe-btn in" id="btn-in" onclick="setTipe('IN')">📥 MASUK (Restock)</button>
+          </div>
+          <input type="hidden" name="tipe" id="tipe-input" value="OUT">
+
+          <label>Daftar Item</label>
+          <div id="item-list" class="item-list">
+            <div class="item-row">
+              <select name="id_bahan[]" required>
+                <option value="">— Pilih Bahan —</option>
+                {% for b in stok %}
+                  <option value="{{ b.id_bahan }}">{{ b.nama_bahan }} ({{ b.satuan }})</option>
+                {% endfor %}
+              </select>
+              <input type="number" name="jumlah[]" min="1" placeholder="Jumlah" required>
+              <button type="button" class="btn-del" onclick="hapusRow(this)">✕</button>
+            </div>
+          </div>
+          <button type="button" class="btn-sm" onclick="tambahRow()" style="width:100%; margin-top:1rem; border-style:dashed;">+ Tambah Item</button>
+          <button type="submit" class="btn-submit" style="margin-top:1.5rem;">SIMPAN TRANSAKSI</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: RIWAYAT -->
+  <div id="tab-riwayat" class="tab-content {{ 'active' if active_tab == 'riwayat' else '' }}">
+    <div class="card">
+        <div class="card-header">
+            <h3>🛍️ Log Penjualan Mie Gacoan</h3>
+            <span class="badge-cabang">SALES LOG</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID NOTA</th>
+                        <th>WAKTU</th>
+                        <th>PENGGUNAAN BAHAN (STOK MINUS)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in riwayat if t.tipe_transaksi == 'KASIR' %}
+                    <tr>
+                        <td style="font-family:var(--mono); color:var(--muted);">#{{ t.id_lokal }}</td>
+                        <td style="font-size:0.8rem;">{{ t.tanggal[11:16] }}</td>
+                        <td style="color:var(--red); font-family:var(--mono); font-size:0.75rem;">
+                            {% if t.detail_bahan %}
+                                {% for item in t.detail_bahan.split(',') %}
+                                    <span style="display:inline-block; margin-right:10px;">📉 -1 {{ item.strip() }}</span>
+                                {% endfor %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top:2rem;">
+        <div class="card-header">
+            <h3>📦 Log Stok (Masuk/Minta Pusat)</h3>
+            <span class="badge-cabang" style="background:rgba(16,185,129,0.1); color:var(--green);">INVENTORY LOG</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>TIPE</th>
+                        <th>BAHAN</th>
+                        <th>JUMLAH</th>
+                        <th>STATUS SYNC</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in riwayat if t.tipe_transaksi != 'KASIR' %}
+                    <tr>
+                        <td style="font-family:var(--mono); color:var(--muted);">#{{ t.id_lokal }}</td>
+                        <td>
+                            <span class="badge {{ 'badge-in' if t.tipe_transaksi in ('IN','REQ_PUSAT') else 'badge-out' }}">
+                                {{ t.tipe_transaksi }}
+                            </span>
+                        </td>
+                        <td style="font-size:0.8rem;">{{ t.detail_bahan }}</td>
+                        <td style="font-family:var(--mono); color:var(--green); font-weight:700;">+{{ t.total_jumlah }}</td>
+                        <td>
+                            <span class="badge badge-{{ t.sync_status }}">{{ t.sync_status }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+  </div>
+
+  <!-- TAB: KASIR -->
+  <div id="tab-kasir" class="tab-content {{ 'active' if active_tab == 'kasir' else '' }}">
+    <div class="card">
+      <div class="card-header"><h3>🛍️ Kasir Mie Gacoan</h3></div>
+      <div class="card-body">
+        <form action="/kasir" method="POST" style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap:1rem; align-items:end;">
+          <div class="form-group">
+            <label>PILIH MENU</label>
+            <select name="id_menu" required>
+              <option value="">-- Pilih Menu Gacoan --</option>
+              {% for m in menus_lokal %}
+              <option value="{{ m.id_menu }}">{{ m.nama_menu }} (Rp {{ m.harga }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>JUMLAH PORSI</label>
+            <input type="number" name="jumlah" value="1" min="1" required>
+          </div>
+          <button type="submit" class="btn-submit" style="background:linear-gradient(135deg,#f59e0b,#fbbf24); color:#000;">
+            💰 CATAT JUAL
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div style="margin-top:1.5rem; font-size:0.75rem; color:var(--muted); text-align:center;">
+      *Setiap penjualan akan otomatis memotong stok 5 bahan baku utama (Mie, Ayam, Minyak, Sambal, Pangsit) sebesar 1 unit per porsi.
+    </div>
+  </div>
+
+</div>
+{% include 'partials_cabang/_scripts_cabang.html' %}
+{% include 'partials_cabang/_modals_cabang.html' %}
+
+{% endif %}
+</body>
+</html>

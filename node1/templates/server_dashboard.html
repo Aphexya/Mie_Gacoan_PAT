@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mie Gacoan — Server Pusat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  {% include 'partials/_styles.html' %}
+</head>
+<body>
+
+{% if not session.get('logged_in') %}
+<!-- ══════════════ LOGIN PAGE ══════════════ -->
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="icon">🍜</div>
+      <h2>Mie Gacoan <span style="color:var(--accent)">Pusat</span></h2>
+      <p>Server Dashboard — Node 1</p>
+    </div>
+    {% if error %}
+    <div class="alert-error">{{ error }}</div>
+    {% endif %}
+    <form method="POST" action="/login">
+      <div class="form-group">
+        <label>USERNAME</label>
+        <input type="text" name="username" placeholder="admin_pusat" autocomplete="off" required>
+      </div>
+      <div class="form-group">
+        <label>PASSWORD</label>
+        <input type="password" name="password" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn-login">MASUK →</button>
+    </form>
+  </div>
+</div>
+
+{% else %}
+<!-- ══════════════ DASHBOARD ══════════════ -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">🍜</div>
+    <div class="logo-text">Mie <span>Gacoan</span></div>
+    <span class="badge-server">SERVER PUSAT</span>
+  </div>
+  <div class="topbar-right">
+    <div class="node-info">NODE <span>1</span> · 192.168.56.101:5000</div>
+    <div class="status-dot"></div>
+    <div class="status-label">ONLINE</div>
+    <form method="POST" action="/logout" style="margin:0">
+      <button class="btn-logout">Logout</button>
+    </form>
+  </div>
+</div>
+
+<div class="container">
+  {% include 'partials/_stats.html' %}
+  <!-- CABANG SUMMARY -->
+  <div class="section-title">Ringkasan Per Cabang</div>
+  <div class="cabang-grid">
+    {% for c in cabang_summary %}
+    <div class="cabang-card">
+      <div class="cabang-name">📍 {{ c.asal_node }}</div>
+      <div class="cabang-stat">
+        <span class="cabang-stat-label">Total Transaksi</span>
+        <span class="cabang-stat-val">{{ c.total }}</span>
+      </div>
+      <div class="cabang-stat">
+        <span class="cabang-stat-label">Synced</span>
+        <span class="cabang-stat-val" style="color:var(--green)">{{ c.synced }}</span>
+      </div>
+      <div class="cabang-stat">
+        <span class="cabang-stat-label">Pending</span>
+        <span class="cabang-stat-val" style="color:var(--yellow)">{{ c.pending }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- STOK + LOG -->
+  <div class="grid-2">
+
+    <!-- Stok Gudang -->
+    <div class="card">
+      <div class="card-header">
+        <h3>📦 Stok Gudang Pusat</h3>
+        <div style="display:flex;gap:.5rem;">
+          <span style="font-size:.75rem;color:var(--muted);font-family:var(--mono)">real-time</span>
+          <button class="btn-refresh" onclick="openAddBahanModal()" style="padding:.3rem .8rem;font-size:.75rem;">+ TAMBAH</button>
+        </div>
+      </div>
+      <div class="card-body" id="stok-container">
+        {% for b in stok %}
+        {% set pct = ((b.stok / 100 * 100) | int) %}
+        {% if pct < 0 %}{% set pct = 0 %}{% endif %}
+        {% if pct > 100 %}{% set pct = 100 %}{% endif %}
+
+        <div class="stok-item" id="stok-{{ b.id_bahan }}" style="margin-bottom:1rem;padding:.75rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem;">
+            <div>
+              <span style="font-size:.85rem;font-weight:600;">{{ b.nama_bahan }}</span>
+              <span style="font-size:.7rem;color:var(--muted);font-family:var(--mono);margin-left:.5rem;">{{ b.satuan }}</span>
+            </div>
+            <div style="display:flex;gap:.3rem;">
+              <button class="btn-refresh" onclick="openEditBahanModal({{ b.id_bahan }}, '{{ b.nama_bahan }}', '{{ b.satuan }}', {{ b.stok }})" style="padding:.2rem .5rem;font-size:.7rem;">✎</button>
+              <button class="btn-refresh" onclick="deleteBahan({{ b.id_bahan }})" style="padding:.2rem .5rem;font-size:.7rem;background:rgba(245,54,92,.3);">✕</button>
+            </div>
+          </div>
+          <div class="stok-bar-wrap">
+            <div class="stok-bar-bg">
+              <div class="stok-bar-fill {% if pct < 20 %}danger{% elif pct < 50 %}warn{% endif %}"
+                  style="width:{{ pct }}%"></div>
+            </div>
+            <div class="stok-num {% if b.stok < 20 %}{% set _ = '' %}{% endif %}"
+                style="color:{% if b.stok < 20 %}var(--red){% elif b.stok < 50 %}var(--yellow){% else %}var(--green){% endif %}">
+              {{ b.stok }}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Log Transaksi -->
+    <div class="card">
+      <div class="card-header">
+        <h3>📋 Log Transaksi Terbaru</h3>
+        <button class="btn-refresh" onclick="location.reload()">↻ Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Node</th>
+              <th>ID</th>
+              <th>Tipe</th>
+              <th>Status</th>
+              <th>Waktu</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in log %}
+            <tr>
+              <td style="font-family:var(--mono);font-size:.78rem;">{{ t.asal_node }}</td>
+              <td style="font-family:var(--mono);color:var(--muted);">#{{ t.id_lokal }}</td>
+              <td>
+                <span class="badge badge-{{ t.tipe_transaksi|lower }}">{{ t.tipe_transaksi }}</span>
+              </td>
+              <td>
+                <span class="badge badge-{{ t.sync_status }}">{{ t.sync_status }}</span>
+              </td>
+              <td style="font-size:.75rem;color:var(--muted);font-family:var(--mono);">
+                {{ t.tanggal[:16] if t.tanggal else '-' }}
+              </td>
+              <td style="text-align: center; display: flex; gap: .3rem; justify-content: center;">
+                {% if t.tipe_transaksi == 'REQ_PUSAT' and t.sync_status == 'pending' %}
+                  <button class="btn-refresh" onclick="setujuiPermintaan('{{ t.asal_node }}', {{ t.id_lokal }})" 
+                          style="padding:.2rem .5rem; font-size:.65rem; background:var(--green); color:#000; border:none;">✓ SETUJU</button>
+                  
+                  <button class="btn-refresh" onclick="tolakPermintaan('{{ t.asal_node }}', {{ t.id_lokal }})" 
+                          style="padding:.2rem .5rem; font-size:.65rem; background:var(--red); color:#fff; border:none;">✕ TOLAK</button>
+                {% else %}
+                  <span style="color:var(--muted); font-size:.75rem;">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabel Lengkap Semua Transaksi -->
+  <div class="section-title">Semua Transaksi Tersinkronisasi</div>
+  <div class="card">
+    <div class="table-wrap" style="max-height:400px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Asal Node</th><th>ID Lokal</th><th>User</th>
+            <th>Tipe</th><th>Tanggal</th><th>Sync Status</th><th>Synced At</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in all_transaksi %}
+          <tr>
+            <td style="font-family:var(--mono);">{{ t.asal_node }}</td>
+            <td style="font-family:var(--mono);color:var(--muted);">#{{ t.id_lokal }}</td>
+            <td style="font-size:.8rem;">{{ t.username or '-' }}</td>
+            <td><span class="badge badge-{{ t.tipe_transaksi|lower }}">{{ t.tipe_transaksi }}</span></td>
+            <td style="font-size:.78rem;color:var(--muted);font-family:var(--mono);">{{ t.tanggal[:16] if t.tanggal else '-' }}</td>
+            <td><span class="badge badge-{{ t.sync_status }}">{{ t.sync_status }}</span></td>
+            <td style="font-size:.78rem;color:var(--muted);font-family:var(--mono);">{{ t.synced_at[:16] if t.synced_at else '-' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+<!-- 3. INJEKSI MODALS & SCRIPTS PARTIALS -->
+{% include 'partials/_modals.html' %}
+{% include 'partials/_scripts.html' %}
+
+{% endif %}
+</body>
+</html>

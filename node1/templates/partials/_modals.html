@@ -1,0 +1,138 @@
+<script>
+  // ── MODAL STYLES ────────────────────────────────────────
+  const modalStyle = document.createElement('style');
+  modalStyle.textContent = `
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    }
+    .modal-header {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      color: var(--accent);
+    }
+    .modal-form-group {
+      margin-bottom: 1rem;
+    }
+    .modal-label {
+      display: block;
+      font-size: .75rem;
+      color: var(--muted);
+      letter-spacing: .5px;
+      margin-bottom: .4rem;
+    }
+    .modal-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: .9rem;
+      padding: .7rem 1rem;
+      border-radius: 8px;
+      outline: none;
+      transition: .2s;
+    }
+    .modal-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(255,107,43,.1);
+    }
+    .modal-buttons {
+      display: flex;
+      gap: .5rem;
+      margin-top: 1.5rem;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: .7rem;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font);
+      font-weight: 700;
+      font-size: .85rem;
+      cursor: pointer;
+      transition: .2s;
+    }
+    .modal-btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #000;
+    }
+    .modal-btn-primary:hover {
+      opacity: .9;
+      transform: translateY(-1px);
+    }
+    .modal-btn-secondary {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .modal-btn-secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .alert-msg {
+      padding: .6rem 1rem;
+      border-radius: 6px;
+      font-size: .8rem;
+      margin-bottom: 1rem;
+    }
+    .alert-success {
+      background: rgba(45,206,137,.15);
+      border: 1px solid rgba(45,206,137,.3);
+      color: var(--green);
+    }
+    .alert-error {
+      background: rgba(245,54,92,.15);
+      border: 1px solid rgba(245,54,92,.3);
+      color: var(--red);
+    }
+  `;
+  document.head.appendChild(modalStyle);
+
+  // ── MODAL HTML ────────────────────────────────────────
+  const modalHTML = `
+    <div class="modal-overlay" id="bahanModal">
+      <div class="modal-content">
+        <div class="modal-header" id="modalTitle">Tambah Bahan Baru</div>
+        <div id="alertMsg"></div>
+        <form id="bahanForm" onsubmit="submitBahan(event)">
+          <div class="modal-form-group">
+            <label class="modal-label">NAMA BAHAN</label>
+            <input type="text" id="inputNama" class="modal-input" required placeholder="Contoh: Mie Basah">
+          </div>
+          <div class="modal-form-group">
+            <label class="modal-label">SATUAN</label>
+            <input type="text" id="inputSatuan" class="modal-input" required placeholder="Contoh: Kg">
+          </div>
+          <div class="modal-form-group">
+            <label class="modal-label">STOK</label>
+            <input type="number" id="inputStok" class="modal-input" required placeholder="0" min="0">
+          </div>
+          <div class="modal-buttons">
+            <button type="submit" class="modal-btn modal-btn-primary" id="submitBtn">SIMPAN</button>
+            <button type="button" class="modal-btn modal-btn-secondary" onclick="closeModal()">BATAL</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+</script>

@@ -1,0 +1,11 @@
+<!-- TABS -->
+<div class="tabs">
+    <button class="tab {{ 'active' if active_tab == 'stok' else '' }}"
+            onclick="switchTab('stok')">📦 Stok Lokal</button>
+    <button class="tab {{ 'active' if active_tab == 'input' else '' }}" 
+        onclick="switchTab('input')">➕ Input Transaksi</button>
+    <button class="tab {{ 'active' if active_tab == 'riwayat' else '' }}"
+            onclick="switchTab('riwayat')">📋 Riwayat</button>
+    <button class="tab {{ 'active' if active_tab == 'kasir' else '' }}"
+            onclick="switchTab('kasir')">🧾 Kasir Penjualan</button>
+</div>
