@@ -136,6 +136,7 @@
               <th>Tipe</th>
               <th>Status</th>
               <th>Waktu</th>
+              <th>Detail Item</th>
               <th>Aksi</th>
             </tr>
           </thead>
@@ -151,8 +152,19 @@
                 <span class="badge badge-{{ t.sync_status }}">{{ t.sync_status }}</span>
               </td>
               <td style="font-size:.75rem;color:var(--muted);font-family:var(--mono);">
-                {{ t.tanggal[:16] if t.tanggal else '-' }}
+                {{ t.tanggal[11:16] if t.tanggal else '-' }}
               </td>
+              
+              <td style="font-size:.75rem; color:var(--accent2); font-family:var(--mono);">
+                {% if t.tipe_transaksi in ('REQ_PUSAT', 'IN', 'OUT') %}
+                  📋 {{ t.detail_request if t.detail_request else '—' }}
+                {% elif t.tipe_transaksi == 'KASIR' %}
+                  🛍️ Penjualan Menu (Stok Terpotong)
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+
               <td style="text-align: center; display: flex; gap: .3rem; justify-content: center;">
                 {% if t.tipe_transaksi == 'REQ_PUSAT' and t.sync_status == 'pending' %}
                   <button class="btn-refresh" onclick="setujuiPermintaan('{{ t.asal_node }}', {{ t.id_lokal }})" 

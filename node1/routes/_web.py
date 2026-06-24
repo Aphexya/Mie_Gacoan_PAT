@@ -36,20 +36,28 @@ def init_web_routes(app, get_db):
         ''')
         cabang_summary = [dict(r) for r in cursor.fetchall()]
 
-        # Log 20 terbaru
+        # UPDATE BARIS LOG 20 TERBARU
         cursor.execute('''
             SELECT h.asal_node, h.id_lokal, h.tipe_transaksi,
-                   h.tanggal, h.sync_status, h.synced_at, u.username
+                   h.tanggal, h.sync_status, h.synced_at, u.username,
+                   (SELECT GROUP_CONCAT(b.nama_bahan || ' (' || d.jumlah || ' ' || b.satuan || ')', ', ')
+                    FROM transaksi_detail d
+                    JOIN bahan_baku b ON d.id_bahan = b.id_bahan
+                    WHERE d.asal_node = h.asal_node AND d.id_lokal = h.id_lokal) AS detail_request
             FROM transaksi_header h
             LEFT JOIN user u ON h.id_user = u.id_user
             ORDER BY h.tanggal DESC LIMIT 20
         ''')
         log = [dict(r) for r in cursor.fetchall()]
 
-        # Semua transaksi
+        # UPDATE BARIS SEMUA TRANSAKSI
         cursor.execute('''
             SELECT h.asal_node, h.id_lokal, h.tipe_transaksi,
-                   h.tanggal, h.sync_status, h.synced_at, u.username
+                   h.tanggal, h.sync_status, h.synced_at, u.username,
+                   (SELECT GROUP_CONCAT(b.nama_bahan || ' (' || d.jumlah || ' ' || b.satuan || ')', ', ')
+                    FROM transaksi_detail d
+                    JOIN bahan_baku b ON d.id_bahan = b.id_bahan
+                    WHERE d.asal_node = h.asal_node AND d.id_lokal = h.id_lokal) AS detail_request
             FROM transaksi_header h
             LEFT JOIN user u ON h.id_user = u.id_user
             ORDER BY h.tanggal DESC

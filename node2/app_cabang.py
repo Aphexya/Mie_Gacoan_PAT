@@ -216,15 +216,40 @@ def render(template, **kwargs):
 
 # ── Helpers ──────────────────────────────────────────────────────────
 def _get_riwayat(cursor):
+    # 💡 FIX KEDUA: Menambahkan kembali SUM(d.jumlah) agar angka kuantitas logistik (+50) muncul
     cursor.execute('''
         SELECT h.asal_node, h.id_lokal, h.tipe_transaksi,
                h.tanggal, h.sync_status, h.synced_at,
-               GROUP_CONCAT(b.nama_bahan, ', ') AS detail_bahan, 
+               m.nama_menu,
+               (SELECT d.jumlah / r.jumlah 
+                FROM transaksi_detail d 
+                JOIN resep r ON d.id_bahan = r.id_bahan AND r.id_menu = m.id_menu
+                WHERE d.asal_node = h.asal_node AND d.id_lokal = h.id_lokal 
+                LIMIT 1) AS total_porsi,
+                
+               -- Subquery untuk log penjualan kasir
+               (SELECT GROUP_CONCAT(b2.nama_bahan || ' (-' || d2.jumlah || ' ' || b2.satuan || ')', ', ')
+                FROM transaksi_detail d2
+                JOIN bahan_baku b2 ON d2.id_bahan = b2.id_bahan
+                WHERE d2.asal_node = h.asal_node AND d2.id_lokal = h.id_lokal) AS detail_bahan_kasir,
+
+               -- Subquery untuk log stok mutasi masuk/keluar biasa (IN/OUT/REQ_PUSAT)
+               (SELECT GROUP_CONCAT(b3.nama_bahan, ', ')
+                FROM transaksi_detail d3
+                JOIN bahan_baku b3 ON d3.id_bahan = b3.id_bahan
+                WHERE d3.asal_node = h.asal_node AND d3.id_lokal = h.id_lokal) AS detail_bahan_logistik,
+                
+               -- 🌟 KUNCI PERBAIKAN: Hitung total kuantitas item dalam satu nota
                SUM(d.jumlah) AS total_jumlah
+                
         FROM transaksi_header h
-        LEFT JOIN transaksi_detail d ON h.asal_node=d.asal_node AND h.id_lokal=d.id_lokal
-        LEFT JOIN bahan_baku b ON d.id_bahan=b.id_bahan
-        WHERE h.asal_node=?
+        LEFT JOIN transaksi_detail d ON h.asal_node = d.asal_node AND h.id_lokal = d.id_lokal
+        LEFT JOIN menu m ON h.tipe_transaksi = 'KASIR' AND m.id_menu = (
+            SELECT r2.id_menu FROM transaksi_detail d4 
+            JOIN resep r2 ON d4.id_bahan = r2.id_bahan 
+            WHERE d4.asal_node = h.asal_node AND d4.id_lokal = h.id_lokal LIMIT 1
+        )
+        WHERE h.asal_node = ?
         GROUP BY h.id_lokal
         ORDER BY h.tanggal DESC LIMIT 50
     ''', (NODE_ID,))

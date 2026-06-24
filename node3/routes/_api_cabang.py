@@ -241,11 +241,21 @@ def init_api_cabang_routes(app, get_db, render, login_required, jalankan_sync, n
             c.execute("UPDATE bahan_baku SET stok = stok - ? WHERE id_bahan=?", (qty_pakai, r['id_bahan']))
             detail_payload.append({"id_bahan": r['id_bahan'], "jumlah": qty_pakai})
 
-        # Antrean Sinkronisasi
-        payload = json.dumps({"asal_node": NODE_ID, "id_lokal": id_l, "id_user": session['id_user'], 
-                            "tipe_transaksi": "KASIR", "tanggal": tgl, "detail": detail_payload})
-        c.execute("INSERT INTO sync_queue (asal_node, id_lokal, payload) VALUES (?,?,?)", (NODE_ID, id_l, payload))
+        # Antrean Sinkronisasi 
+        payload = json.dumps({
+            "asal_node": NODE_ID, 
+            "id_lokal": id_l, 
+            "id_user": session['id_user'], 
+            "tipe_transaksi": "KASIR", 
+            "tanggal": tgl, 
+            "detail": detail_payload
+        })
+        
+        # Di sini kita tambahkan kolom 'status' dan nilai 'pending'
+        c.execute('''
+            INSERT INTO sync_queue (asal_node, id_lokal, payload, status) 
+            VALUES (?,?,?,?)
+        ''', (NODE_ID, id_l, payload, 'pending'))
         
         conn.commit(); conn.close()
         session['flash'] = f"Berhasil Jual {jumlah} {menu['nama_menu']}!"; return redirect('/')
-

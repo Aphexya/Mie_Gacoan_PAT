@@ -96,20 +96,36 @@ def setup_db(node_id="Node1"):
     )
 
     # ── DATA MENU ────────────────────
+    cursor.execute("DELETE FROM menu;")
+    cursor.execute("DELETE FROM resep;")
+
     menus = [
-        ('Mie Gacoan',  15000),
-        ('Mie Hompimpa', 15000),
-        ('Mie Suit',     13000),
+        (1, 'Mie Gacoan',  15000),
+        (2, 'Mie Hompimpa', 15000),
+        (3, 'Mie Suit',     13000),
     ]
-    cursor.executemany("INSERT OR IGNORE INTO menu (nama_menu, harga) VALUES (?,?)", menus)
+    cursor.executemany("INSERT OR IGNORE INTO menu (id_menu, nama_menu, harga) VALUES (?,?,?)", menus)
 
     # ── DATA USERS ────────────────────
     users = [
-        ('admin_pusat',    '123', 'Node1'),
-        ('admin_cabang_a', '123', 'Node2'),
-        ('admin_cabang_b', '123', 'Node3'),
+        (1, 'admin_pusat',    '123', 'Node1'),
+        (2, 'admin_cabang_a', '123', 'Node2'),
+        (3, 'admin_cabang_b', '123', 'Node3'),
     ]
-    cursor.executemany("INSERT OR IGNORE INTO user (username, password, asal_node) VALUES (?,?,?)", users)
+    cursor.executemany("INSERT OR IGNORE INTO user (id_user, username, password, asal_node) VALUES (?,?,?,?)", users)
+
+    # ── DATA RESEP MIE GACOAN (Tambahan Baru) ────────────────────
+    # Berdasarkan ID Bahan Master: 
+    # 1=Mie Basah, 2=Mie Keriting, 3=Ayam Cincang, 4=Sambal Rawit, 5=Minyak Bawang, 6=Pangsit Goreng
+    resep_gacoan = [
+        # Mie Gacoan (id_menu=1) -> Mie Basah(1), Ayam(3), Sambal(4), Minyak(5), Pangsit(6)
+        (1, 1, 1), (1, 3, 1), (1, 4, 1), (1, 5, 1), (1, 6, 1),
+        # Mie Hompimpa (id_menu=2) -> Mie Keriting(2), Ayam(3), Sambal(4), Minyak(5), Pangsit(6)
+        (2, 2, 1), (2, 3, 1), (2, 4, 1), (2, 5, 1), (2, 6, 1),
+        # Mie Suit (id_menu=3) -> Mie Basah(1), Ayam(3), Minyak(5), Pangsit(6)
+        (3, 1, 1), (3, 3, 1), (3, 5, 1), (3, 6, 1)
+    ]
+    cursor.executemany("INSERT OR IGNORE INTO resep (id_menu, id_bahan, jumlah) VALUES (?,?,?)", resep_gacoan)
 
     conn.commit()
     conn.close()
